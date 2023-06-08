@@ -1,0 +1,85 @@
+---
+title: RMed23 Stream
+date: 2023-06-07
+output: html_document
+---
+
+Goals for stream:
+
+- learned how to gtsummary (aka let gtsummary go brrr) ✅
+- learned how to gt 🤷
+- get interactive table with gt ✅
+- reproduce table from paper ❓
+- learn about randomized controlled trials ❌
+- learn about pancreatitis? 🤷
+
+
+```{r eval = FALSE}
+pak::pak(c("gt", "gtsummary","higgi13425/medicaldata"))
+```
+
+```{r}
+suppressPackageStartupMessages({
+  library(gt)
+  library(gtsummary)
+  library(medicaldata)
+  library(tidyverse)
+  library(data.table)
+  library(tantastic)
+})
+```
+
+```{r}
+indo_gtsummary <- indo_rct |>
+  mutate(
+    across(
+      where(is.factor), 
+      \(.x) as.character(.x) |> 
+        str_replace(".+_(.+)", "\\1"))
+  ) |> 
+  select(-id) |> 
+  tbl_summary(by = "rx")
+
+indo_gtsummary
+```
+
+```{r}
+indo_clean <- indo_rct |>
+  mutate(
+    across(
+      where(is.factor), 
+      \(.x) as.character(.x) |> 
+        str_replace(".+_(.+)", "\\1"))
+  ) |> 
+  pivot_longer(
+    cols = -c(id, age, risk, bleed, outcome),
+    names_to = "colname",
+    values_to = "value"
+  ) |> 
+  group_by(id) |> 
+  mutate(rx = ifelse(colname == "rx", value, NA)) |> 
+  fill(rx, .direction = 'downup') |> 
+  ungroup() |> 
+  filter(colname != "rx") |> 
+  count(rx, colname, value, outcome) |> 
+  add_count(rx, colname, wt = n, name = "total") |> 
+  mutate(
+    pct = round(n/total,3),
+    n = NULL,
+    total = NULL
+  ) |> 
+  pivot_wider(names_from = "rx",
+              values_from = pct)
+
+indo_clean |> 
+  gt() |> 
+  fmt_percent(columns = c(indomethacin, placebo)) |> 
+  opt_interactive(
+    page_size_default = 100,
+    use_sorting = TRUE,
+    use_search = TRUE,
+    use_filters = TRUE
+  )
+
+```
+
